@@ -1,0 +1,115 @@
+import { finalizeEvent, SimplePool } from 'nostr-tools/pure';
+import { hexToBytes } from '@noble/hashes/utils';
+import 'websocket-polyfill';
+
+// ---------- CONFIGURATION ----------
+const privateKeyHex = process.env.NOSTR_PRIVATE_KEY;
+if (!privateKeyHex) {
+  console.error("❌ Error: NOSTR_PRIVATE_KEY environment variable not set.");
+  process.exit(1);
+}
+const privateKeyBytes = hexToBytes(privateKeyHex);
+
+const relays = [
+  'wss://relay.damus.io',
+  'wss://nos.lol',
+  'wss://relay.primal.net'
+];
+const pool = new SimplePool();
+
+// ---------- FALLBACK LOCAL FACTS ----------
+const localFacts = [
+  "🐱 A group of cats is called a 'clowder'.",
+  "🐾 Cats have over 100 vocal sounds, while dogs only have about 10.",
+  "😺 A cat's nose pad is as unique as a human's fingerprint.",
+  "💤 Cats spend 70% of their lives sleeping.",
+  "📏 The world's longest cat was a Maine Coon named Stewie, measuring 48.5 inches.",
+  "👂 Cats can rotate their ears 180 degrees.",
+  "🏃 Cats can run up to 30 miles per hour.",
+  "🌿 The catnip plant contains an oil called nepetalactone, which can make cats 'trip'.",
+  "👶 A kitten's eyes are always blue at birth.",
+  "💧 Most adult cats are lactose intolerant.",
+  "🧠 A cat's brain is 90% similar to a human's brain.",
+  "🐈 Cats can jump up to six times their body length.",
+  "👁 Cats have a third eyelid called the 'haw'.",
+  "🎧 Cats hear frequencies up to 64 kHz—far higher than humans.",
+  "🦴 Cats have 230 bones, while humans have 206.",
+  "🐾 Cats walk like camels and giraffes—both right feet move first, then both left.",
+  "😼 Cats can make over 20 different meow variations to communicate with humans.",
+  "🌙 Cats are crepuscular, meaning they’re most active at dawn and dusk.",
+  "🦷 Adult cats have 30 teeth, while kittens have 26.",
+  "🐈‍⬛ Black cats are considered good luck in Japan and the UK.",
+  "💓 A cat’s purr can range from 25 to 150 Hertz—frequencies known to promote healing.",
+  "👃 Cats have 200 million scent receptors (humans have about 5 million).",
+  "🐾 Cats sweat only through their paw pads.",
+  "🎣 Cats use their whiskers to measure openings and detect air currents.",
+  "🛏 Cats dream during REM sleep just like humans.",
+  "🐱 The average cat can make a 90-degree turn mid-air while falling.",
+  "📦 Cats sit in boxes because it makes them feel safe and hidden.",
+  "🧶 Cats knead because it reminds them of kittenhood and nursing.",
+  "👑 Ancient Egyptians worshipped cats and believed they brought good fortune.",
+  "🐈 A cat’s tail position is a full emotional language.",
+  "🧊 Cats prefer running water because instinct tells them it’s safer to drink.",
+  "🎨 Calico cats are almost always female due to genetics.",
+  "🧬 Cats share 95.6% of their DNA with tigers.",
+  "🐾 Cats can’t taste sweetness—one of their taste receptors is missing.",
+  "🌡 A cat’s normal body temperature is 100.5–102.5°F.",
+  "🧭 Cats can find their way home using the Earth’s magnetic field (a 'homing instinct').",
+  "🐈 Cats groom each other to bond socially—this is called allogrooming.",
+  "👂 A cat has 32 muscles in each ear.",
+  "🪶 Cats can make a chirping sound when watching birds—it's a hunting instinct.",
+  "🧘 Cats stretch after waking to get blood flowing and prepare muscles for action.",
+  "🐾 Cats have a dominant paw—left or right—just like humans.",
+  "🧊 Cats don’t like cold food because it mimics prey that’s been dead too long.",
+  "🌬 Cats can sense tiny vibrations, helping them detect approaching storms.",
+  "🐈‍⬛ The oldest known pet cat was found in a 9,500-year-old grave in Cyprus.",
+  "🧴 Cats groom themselves to regulate body temperature and reduce stress.",
+  "🎭 Cats use slow blinking as a sign of trust and affection.",
+  "🪺 Mother cats teach kittens to hunt by bringing them injured prey.",
+  "🐱 Cats can survive falls from high places thanks to their righting reflex.",
+  "💗 Cats recognize their human’s voice—they just choose to ignore it sometimes."
+];
+
+
+async function getRandomCatFact() {
+  try {
+    console.log("🐈 Fetching cat fact from catfact.ninja API...");
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const response = await fetch('https://catfact.ninja/fact', {
+      headers: { 'Accept': 'application/json' },
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    if (data && data.fact) {
+      console.log("✅ Successfully fetched a fact from the API.");
+      return `🐱 Cat Fact: ${data.fact}`;
+    } else {
+      throw new Error("Invalid API response structure");
+    }
+  } catch (error) {
+    console.warn(`⚠️ API fetch failed (${error.message}). Using fallback local fact.`);
+    const randomIndex = Math.floor(Math.random() * localFacts.length);
+    return localFacts[randomIndex];
+  }
+}
+
+async function publishCatFact() {
+  const catFact = await getRandomCatFact();
+  const event = finalizeEvent({
+    kind: 1,
+    created_at: Math.floor(Date.now() / 1000),
+    tags: [],
+    content: `${catFact} #catfacts #caturday`,
+  }, privateKeyBytes);
+
+  console.log(`📤 Publishing event: ${event.content.substring(0, 80)}...`);
+  const pubs = pool.publish(relays, event);
+  await Promise.all(pubs);
+  console.log(`✅ Published! View it here: https://njump.me/${event.id}`);
+  pool.close(relays);
+}
+
+publishCatFact().catch(console.error);
