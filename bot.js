@@ -1,6 +1,10 @@
 const { finalizeEvent } = require('nostr-tools');
 const { SimplePool } = require('nostr-tools/pool');
-require('websocket-polyfill');
+const WebSocket = require('ws');
+
+// Make WebSocket available globally (nostr-tools expects it)
+global.WebSocket = WebSocket;
+
 const fs = require('fs');
 
 // ---------- CONFIGURATION ----------
@@ -19,7 +23,7 @@ const relays = [
 ];
 const pool = new SimplePool();
 
-// ---------- YOUR COMPLETE CAT FACTS (full list from earlier) ----------
+// ---------- YOUR COMPLETE CAT FACTS ----------
 const allFacts = [
   "🐱 A group of cats is called a 'clowder'.",
   "🐾 Cats have over 100 vocal sounds, while dogs only have about 10.",
@@ -90,22 +94,20 @@ function savePostedFacts(posted) {
 function getUnusedFact(posted) {
   const unused = allFacts.filter(f => !posted.includes(f));
   if (unused.length === 0) {
-    // All facts have been used – reset the list and post a special message
-    console.log("🎉 All facts have been used! Resetting the list and starting over.");
-    return { fact: "🔄 Cat fact loop completed! Starting round two. Here's a fresh fact: " + allFacts[0], reset: true };
+    console.log("🎉 All facts have been used! Resetting the list.");
+    return { fact: allFacts[0], reset: true };
   }
   const randomIndex = Math.floor(Math.random() * unused.length);
   return { fact: unused[randomIndex], reset: false };
 }
 
-// ---------- GIT COMMIT FUNCTION ----------
 function commitAndPush() {
   const { execSync } = require('child_process');
   try {
     execSync('git config user.name "Nostr Cat Bot"');
     execSync('git config user.email "bot@example.com"');
     execSync('git add posted_facts.json');
-    execSync('git commit -m "Update posted facts [skip ci]"');
+    execSync('git commit -m "Update posted facts [skip ci]" || echo "No changes to commit"');
     execSync('git push');
     console.log("✅ Changes committed and pushed to GitHub.");
   } catch (error) {
@@ -113,15 +115,13 @@ function commitAndPush() {
   }
 }
 
-// ---------- MAIN PUBLISH FUNCTION ----------
 async function publishCatFact() {
   const posted = loadPostedFacts();
   const { fact, reset } = getUnusedFact(posted);
   
   let content = fact;
   if (reset) {
-    // When resetting, we also clear the posted list
-    savePostedFacts([]); // start fresh
+    savePostedFacts([]); // reset the tracking list
   } else {
     content = fact;
   }
@@ -138,13 +138,12 @@ async function publishCatFact() {
   await Promise.all(pubs);
   console.log(`✅ Published! View: https://njump.me/${event.id}`);
 
-  // Only add to posted list if it was a normal fact (not a reset notice)
   if (!reset) {
     const newPosted = [...posted, fact];
     savePostedFacts(newPosted);
-    commitAndPush(); // save to GitHub
+    commitAndPush();
   } else {
-    // If we reset, we already cleared the list, so commit that change
+    // Reset case: already cleared the list, commit the empty list
     commitAndPush();
   }
 
