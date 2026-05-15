@@ -1,5 +1,4 @@
 import { finalizeEvent, SimplePool } from 'nostr-tools/pure';
-import { hexToBytes } from '@noble/hashes/utils';
 import 'websocket-polyfill';
 
 // ---------- CONFIGURATION ----------
@@ -8,12 +7,14 @@ if (!privateKeyHex) {
   console.error("❌ Error: NOSTR_PRIVATE_KEY environment variable not set.");
   process.exit(1);
 }
-const privateKeyBytes = hexToBytes(privateKeyHex);
+// Convert hex to bytes using Buffer (works with Node.js, no extra import needed)
+const privateKeyBytes = Buffer.from(privateKeyHex, 'hex');
 
 const relays = [
   'wss://relay.damus.io',
   'wss://nos.lol',
-  'wss://relay.primal.net'
+  'wss://relay.primal.net',
+  'wss://relay.snort.social'
 ];
 const pool = new SimplePool();
 
