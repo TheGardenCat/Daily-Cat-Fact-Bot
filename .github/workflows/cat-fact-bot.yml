@@ -2,9 +2,11 @@ name: Daily Cat Fact Bot
 
 on:
   schedule:
-    # Runs every 6 hours. Change the cron below if you want.
-    - cron: '0 */6 * * *'
-  workflow_dispatch:  # This lets you run it manually from the Actions tab.
+    - cron: '0 12 * * *'   # runs daily at 12:00 UTC – you can change this
+  workflow_dispatch:
+
+permissions:
+  contents: write   # Allows the bot to commit and push
 
 jobs:
   post-cat-fact:
@@ -12,14 +14,19 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          persist-credentials: true   # So we can push back
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
+      - name: Initialize package.json
+        run: npm init -y
+
       - name: Install dependencies
-        run: npm install nostr-tools @noble/hashes websocket-polyfill
+        run: npm install nostr-tools websocket-polyfill
 
       - name: Run Nostr Cat Fact Bot
         env:
