@@ -1,4 +1,5 @@
-import { finalizeEvent, SimplePool } from 'nostr-tools/pure';
+import { finalizeEvent } from 'nostr-tools';
+import { SimplePool } from 'nostr-tools/pool';
 import 'websocket-polyfill';
 
 // ---------- CONFIGURATION ----------
@@ -7,7 +8,6 @@ if (!privateKeyHex) {
   console.error("❌ Error: NOSTR_PRIVATE_KEY environment variable not set.");
   process.exit(1);
 }
-// Convert hex to bytes using Buffer (works with Node.js, no extra import needed)
 const privateKeyBytes = Buffer.from(privateKeyHex, 'hex');
 
 const relays = [
@@ -18,7 +18,7 @@ const relays = [
 ];
 const pool = new SimplePool();
 
-// ---------- FALLBACK LOCAL FACTS ----------
+// ---------- YOUR EXPANDED LOCAL FACTS ----------
 const localFacts = [
   "🐱 A group of cats is called a 'clowder'.",
   "🐾 Cats have over 100 vocal sounds, while dogs only have about 10.",
@@ -70,7 +70,6 @@ const localFacts = [
   "🐱 Cats can survive falls from high places thanks to their righting reflex.",
   "💗 Cats recognize their human’s voice—they just choose to ignore it sometimes."
 ];
-
 
 async function getRandomCatFact() {
   try {
