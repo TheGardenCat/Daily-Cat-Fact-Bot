@@ -1,6 +1,7 @@
-import { finalizeEvent } from 'nostr-tools';
-import { SimplePool } from 'nostr-tools/pool';
-import 'websocket-polyfill';
+const { finalizeEvent } = require('nostr-tools');
+const { SimplePool } = require('nostr-tools/pool');
+require('websocket-polyfill');
+const fs = require('fs');
 
 // ---------- CONFIGURATION ----------
 const privateKeyHex = process.env.NOSTR_PRIVATE_KEY;
@@ -18,8 +19,8 @@ const relays = [
 ];
 const pool = new SimplePool();
 
-// ---------- YOUR EXPANDED LOCAL FACTS ----------
-const localFacts = [
+// ---------- YOUR COMPLETE CAT FACTS (full list from earlier) ----------
+const allFacts = [
   "🐱 A group of cats is called a 'clowder'.",
   "🐾 Cats have over 100 vocal sounds, while dogs only have about 10.",
   "😺 A cat's nose pad is as unique as a human's fingerprint.",
@@ -71,44 +72,82 @@ const localFacts = [
   "💗 Cats recognize their human’s voice—they just choose to ignore it sometimes."
 ];
 
-async function getRandomCatFact() {
+// ---------- TRACK POSTED FACTS ----------
+const postedFile = 'posted_facts.json';
+
+function loadPostedFacts() {
+  if (!fs.existsSync(postedFile)) {
+    return [];
+  }
+  const data = fs.readFileSync(postedFile, 'utf8');
+  return JSON.parse(data);
+}
+
+function savePostedFacts(posted) {
+  fs.writeFileSync(postedFile, JSON.stringify(posted, null, 2));
+}
+
+function getUnusedFact(posted) {
+  const unused = allFacts.filter(f => !posted.includes(f));
+  if (unused.length === 0) {
+    // All facts have been used – reset the list and post a special message
+    console.log("🎉 All facts have been used! Resetting the list and starting over.");
+    return { fact: "🔄 Cat fact loop completed! Starting round two. Here's a fresh fact: " + allFacts[0], reset: true };
+  }
+  const randomIndex = Math.floor(Math.random() * unused.length);
+  return { fact: unused[randomIndex], reset: false };
+}
+
+// ---------- GIT COMMIT FUNCTION ----------
+function commitAndPush() {
+  const { execSync } = require('child_process');
   try {
-    console.log("🐈 Fetching cat fact from catfact.ninja API...");
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-    const response = await fetch('https://catfact.ninja/fact', {
-      headers: { 'Accept': 'application/json' },
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data = await response.json();
-    if (data && data.fact) {
-      console.log("✅ Successfully fetched a fact from the API.");
-      return `🐱 Cat Fact: ${data.fact}`;
-    } else {
-      throw new Error("Invalid API response structure");
-    }
+    execSync('git config user.name "Nostr Cat Bot"');
+    execSync('git config user.email "bot@example.com"');
+    execSync('git add posted_facts.json');
+    execSync('git commit -m "Update posted facts [skip ci]"');
+    execSync('git push');
+    console.log("✅ Changes committed and pushed to GitHub.");
   } catch (error) {
-    console.warn(`⚠️ API fetch failed (${error.message}). Using fallback local fact.`);
-    const randomIndex = Math.floor(Math.random() * localFacts.length);
-    return localFacts[randomIndex];
+    console.warn("⚠️ Could not commit/push (maybe no changes or permissions):", error.message);
   }
 }
 
+// ---------- MAIN PUBLISH FUNCTION ----------
 async function publishCatFact() {
-  const catFact = await getRandomCatFact();
+  const posted = loadPostedFacts();
+  const { fact, reset } = getUnusedFact(posted);
+  
+  let content = fact;
+  if (reset) {
+    // When resetting, we also clear the posted list
+    savePostedFacts([]); // start fresh
+  } else {
+    content = fact;
+  }
+
   const event = finalizeEvent({
     kind: 1,
     created_at: Math.floor(Date.now() / 1000),
     tags: [],
-    content: `${catFact} #catfacts #caturday`,
+    content: `${content} #catfacts #caturday`,
   }, privateKeyBytes);
 
-  console.log(`📤 Publishing event: ${event.content.substring(0, 80)}...`);
+  console.log(`📤 Publishing: ${content.substring(0, 80)}...`);
   const pubs = pool.publish(relays, event);
   await Promise.all(pubs);
-  console.log(`✅ Published! View it here: https://njump.me/${event.id}`);
+  console.log(`✅ Published! View: https://njump.me/${event.id}`);
+
+  // Only add to posted list if it was a normal fact (not a reset notice)
+  if (!reset) {
+    const newPosted = [...posted, fact];
+    savePostedFacts(newPosted);
+    commitAndPush(); // save to GitHub
+  } else {
+    // If we reset, we already cleared the list, so commit that change
+    commitAndPush();
+  }
+
   pool.close(relays);
 }
 
